@@ -1,0 +1,140 @@
+=== photovoltaic ===
+ods032        2,960,832  Photovoltaic power production estimation and forecast on Belgian grid (Historical)
+ods087            9,408  Photovoltaic power production estimation and forecast on Belgian grid (Near real-time)
+ods209            6,912  [Simulated] Photovoltaic power production estimation and forecast on Belgian grid (Historical)
+ods210            3,456  [Simulated] Photovoltaic power production estimation and forecast on Belgian grid (Near real-time)
+
+4 datasets
+=== pv ===
+
+0 datasets
+=== ods026 ===
+Physical flow - by border  
+
+Campos:
+  datetime                            datetime   Datetime
+  resolutioncode                      text       Resolution code
+  controlarea                         text       Control area
+  physicalflowatborder                double     Physical Flow Value
+
+Registros totales: 1631124
+Ejemplo:
+[
+  {
+    "datetime": "2021-05-09T14:45:00+00:00",
+    "resolutioncode": "PT15M",
+    "controlarea": "Netherlands",
+    "physicalflowatborder": 1915.624
+  },
+  {
+    "datetime": "2021-05-09T14:30:00+00:00",
+    "resolutioncode": "PT15M",
+    "controlarea": "Germany",
+    "physicalflowatborder": 1.272
+  },
+  {
+    "datetime": "2021-05-09T14:30:00+00:00",
+    "resolutioncode": "PT15M",
+    "controlarea": "UnitedKingdom",
+    "physicalflowatborder": 746.357
+  }
+]
+=== ods031 ===
+Wind power production estimation and forecast on Belgian grid (Historical) 
+
+Campos:
+  datetime                            datetime   Datetime
+  resolutioncode                      text       Resolution code
+  offshoreonshore                     text       Offshore/onshore
+  region                              text       Region
+  gridconnectiontype                  text       Grid connection type
+  measured                            double     Measured & Upscaled
+  mostrecentforecast                  double     Most recent forecast
+  mostrecentconfidence10              double     Most recent P10
+  mostrecentconfidence90              double     Most recent P90
+  dayahead11hforecast                 double     Day Ahead 11AM forecast
+  dayahead11hconfidence10             double     Day Ahead 11AM P10
+  dayahead11hconfidence90             double     Day Ahead 11AM P90
+  dayaheadforecast                    double     Day-ahead 6PM forecast
+  dayaheadconfidence10                double     Day-ahead 6PM P10
+  dayaheadconfidence90                double     Day-ahead 6PM P90
+  weekaheadforecast                   double     Week-ahead forecast
+  weekaheadconfidence10               double     Week-ahead P10
+  weekaheadconfidence90               double     Week-ahead P90
+  monitoredcapacity                   double     Monitored capacity
+  loadfactor                          double     Load factor
+  decrementalbidid                    text       Decremental bid Indicator
+
+Registros totales: 2065420
+Ejemplo:
+[
+  {
+    "datetime": "2020-05-17T13:00:00+00:00",
+    "resolutioncode": "PT15M",
+    "offshoreonshore": "Offshore",
+    "region": "Federal",
+    "gridconnectiontype": "Elia",
+    "measured": 25.53,
+    "mostrecentforecast": 118.04,
+    "mostrecentconfidence10": 8.84,
+    "mostrecentconfidence90": 215.62,
+    "dayahead11hforecast": 8.02,
+    "dayahead11hconfidence10": 1.62,
+    "dayahead11hconfidence90": 304.75,
+    "dayaheadforecast": 7.42,
+    "dayaheadconfidence10": 0.0,
+    "dayaheadconfidence90": 319.87,
+    "weekaheadforecast": 222.96,
+    "weekaheadconfidence10": 5.61,
+    "weekaheadconfidence90": 1355.81,
+    "monitoredcapacity": 1671.7,
+    "loadfactor": 0.02,
+    "decrementalbidid": "''"
+  },
+  {
+    "datetime": "2020-05-17T12:45:00+00:00",
+    "resolutioncode": "PT15M",
+    "offshoreonshore": "Onshore",
+    "region": "Wallonia",
+    "gridconnectiontype": "Elia",
+    "measured": 0.22,
+    "mostrecentforecast": 0.37,
+    "mostrecentconfidence10": 0.04,
+    "mostrecentconfidence90": 1.04,
+    "dayahead11hforecast": 0.74,
+    "dayahead11hconfidence10": 0.02,
+    "dayahead11hconfidence90": 1.85,
+    "dayaheadforecast": 0.86,
+    "dayaheadconfidence10": 0.0,
+    "dayaheadconfidence90": 2.01,
+    "weekaheadforecast": 7.55,
+    "weekaheadconfidence10": 0.0,
+    "weekaheadconfidence90": 15.56,
+    "monitoredcapacity": 104.5,
+    "loadfactor": 0.0,
+    "decrementalbidid": "''"
+  },
+  {
+    "datetime": "2020-05-17T12:30:00+00:00",
+    "resolutioncode": "PT15M",
+    "offshoreonshore": "Onshore",
+    "region": "Wallonia",
+    "gridconnectiontype": "Elia",
+    "measured": 0.22,
+    "mostrecentforecast": 0.38,
+    "mostrecentconfidence10": 0.04,
+    "mostrecentconfidence90": 1.02,
+    "dayahead11hforecast": 0.71,
+    "dayahead11hconfidence10": 0.02,
+    "dayahead11hconfidence90": 1.77,
+    "dayaheadforecast": 0.86,
+    "dayaheadconfidence10": 0.01,
+    "dayaheadconfidence90": 2.01,
+    "weekaheadforecast": 7.45,
+    "weekaheadconfidence10": 0.0,
+    "weekaheadconfidence90": 15.4,
+    "monitoredcapacity": 104.5,
+    "loadfactor": 0.0,
+    "decrementalbidid": "''"
+  }
+]

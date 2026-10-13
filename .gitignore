@@ -1,0 +1,10 @@
+# Secretos y entorno local: nunca al repositorio
+.env
+*.token
+.venv/
+__pycache__/
+# Datos descargados (se regeneran con la ingesta)
+data/
+*.duckdb
+.DS_Store
+.prueba/

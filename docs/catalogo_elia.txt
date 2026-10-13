@@ -1,0 +1,91 @@
+Measured and forecasted total load on the Belgian grid (Historical data) 
+
+Campos:
+  datetime                            datetime   Datetime
+  resolutioncode                      text       Resolution code
+  totalload                           double     Total Load
+  mostrecentforecast                  double     Most recent forecast
+  mostrecentconfidence10              double     Most recent P10
+  mostrecentconfidence90              double     Most recent P90
+  dayaheadforecast                    double     Day-ahead 6PM forecast
+  dayaheadconfidence10                double     Day-ahead 6PM P10
+  dayaheadconfidence90                double     Day-ahead 6PM P90
+  weekaheadforecast                   double     Week-ahead forecast
+
+Registros totales: 413852
+Ejemplo:
+[
+  {
+    "datetime": "2026-03-26T12:45:00+00:00",
+    "resolutioncode": "PT15M",
+    "totalload": 11221.78,
+    "mostrecentforecast": 11177.18,
+    "mostrecentconfidence10": 10924.59,
+    "mostrecentconfidence90": 11429.76,
+    "dayaheadforecast": 10780.56,
+    "dayaheadconfidence10": 10361.33,
+    "dayaheadconfidence90": 11199.79,
+    "weekaheadforecast": 10740.64
+  },
+  {
+    "datetime": "2026-03-26T12:30:00+00:00",
+    "resolutioncode": "PT15M",
+    "totalload": 11607.77,
+    "mostrecentforecast": 11312.82,
+    "mostrecentconfidence10": 11057.17,
+    "mostrecentconfidence90": 11568.47,
+    "dayaheadforecast": 10902.19,
+    "dayaheadconfidence10": 10478.23,
+    "dayaheadconfidence90": 11326.15,
+    "weekaheadforecast": 10842.88
+  },
+  {
+    "datetime": "2026-03-26T10:30:00+00:00",
+    "resolutioncode": "PT15M",
+    "totalload": 11206.89,
+    "mostrecentforecast": 12182.7,
+    "mostrecentconfidence10": 11925.44,
+    "mostrecentconfidence90": 12439.96,
+    "dayaheadforecast": 11298.33,
+    "dayaheadconfidence10": 10871.77,
+    "dayaheadconfidence90": 11724.89,
+    "weekaheadforecast": 11334.14
+  }
+]
+=== solar ===
+
+0 datasets
+=== wind ===
+ods031        2,065,420  Wind power production estimation and forecast on Belgian grid (Historical)
+ods086            3,360  Wind power production estimation and forecast on Belgian grid (Near real-time)
+
+2 datasets
+=== cross ===
+ods072               78  Congestion management activations - Cross-border redispatching - data up to 22/05/2024
+ods170               63  Congestion management activations - Cross-border redispatching (local) - data as of 22/05/2024
+ods171               41  Congestion management activations - Cross-border redispatching (import/export) - data as of 22/05/2024
+
+3 datasets
+=== flow ===
+ods026        1,631,124  Physical flow - by border 
+ods027           95,232  Loop flow - by border (Archive dataset)
+ods124        3,274,284  Physical flows on the Belgian high-voltage grid
+ods160              373  Physical flow - by border (Near real-time)
+
+4 datasets
+=== imbalance ===
+ods045        2,833,800  Current system imbalance (Historical data - up to 22/05/2024)
+ods046        2,482,050  Imbalance prices per minute (Historical data - up to 22/05/2024)
+ods047          329,180  Imbalance prices per quarter-hour (Historical data - up to 22/05/2024)
+ods126        1,258,560  Current system imbalance (Historical data as of 22/05/2024)
+ods133        1,255,319  Imbalance price per minute (Historical data as of 22/05/2024)
+ods134           83,904  Imbalance prices per quarter-hour (Historical data as of 22/05/2024)
+ods136        1,878,312  System imbalance forecast current quarter hour (near real-time)
+ods147        1,565,400  System imbalance forecast next quarter hour (near real-time)
+ods161            1,135  Imbalance prices per minute (Near real-time)
+ods162               75  Imbalance prices per quarter-hour (Near real-time)
+ods169            2,454  Current system imbalance (Near real-Time)
+ods211          305,265  [Simulated] Imbalance prices per minute  (Live updates as of 24/11/2026 10h conditional on CREG approval)
+ods212           20,352  [Simulated] Imbalance prices per quarter-hour  (Live updates as of 24/11/2026 10h conditional on CREG approval)
+
+13 datasets
