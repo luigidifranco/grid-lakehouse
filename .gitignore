@@ -8,3 +8,9 @@ data/
 *.duckdb
 .DS_Store
 .prueba/
+
+# dbt
+gold/target/
+gold/logs/
+gold/dbt_packages/
+gold/.user.yml

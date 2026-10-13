@@ -1,0 +1,31 @@
+name: grid_lakehouse
+version: "0.1.0"
+config-version: 2
+profile: grid_lakehouse
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+vars:
+  # Carpeta de datos, relativa a gold/ (desde donde se ejecuta dbt)
+  data_dir: "../data"
+  # 'delta' en el Mac; 'parquet' solo para pruebas sin la extensión delta de DuckDB
+  silver_format: "delta"
+
+models:
+  grid_lakehouse:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: gold
+
+seeds:
+  grid_lakehouse:
+    +schema: reference
+
+flags:
+  send_anonymous_usage_stats: false

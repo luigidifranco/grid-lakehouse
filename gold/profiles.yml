@@ -1,0 +1,10 @@
+grid_lakehouse:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: ../data/gold/grid.duckdb
+      extensions: [delta]
+      settings:
+        TimeZone: UTC
+      threads: 4

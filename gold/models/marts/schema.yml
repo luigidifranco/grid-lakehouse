@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: One row per market day (Brussels time); quarters_in_day is 92, 96 or 100 on clock-change days.
+    columns:
+      - name: market_date
+        tests: [unique, not_null]
+      - name: quarters_in_day
+        tests: [not_null, {accepted_values: {arguments: {values: [92, 96, 100], quote: false}}}]
+  - name: fct_day_ahead_price
+    description: Day-ahead price per bidding zone and quarter-hour (main SDAC auction).
+    tests:
+      - unique_combination: {arguments: {columns: [bidding_zone, interval_start_utc]}}
+    columns:
+      - name: market_date
+        tests: [{relationships: {arguments: {to: ref('dim_date'), field: market_date}}}]
+  - name: fct_cross_border_flow
+    description: Net export from Belgium per border and quarter-hour, from ENTSO-E and Elia, with the difference between sources.
+    tests:
+      - unique_combination: {arguments: {columns: [neighbour, interval_start_utc]}}
+  - name: fct_be_system
+    description: Belgian power system per quarter-hour — load, wind, solar, residual load, net exports and price.
+    columns:
+      - name: interval_start_utc
+        tests: [unique, not_null]
+      - name: load_mw
+        tests: [not_null]
+  - name: mart_daily_price_spread
+    description: Daily price spread Belgium minus each coupled neighbour, price convergence and average net export.
+  - name: mart_daily_forecast_accuracy
+    description: Daily accuracy of Elia's day-ahead forecasts for load, wind and solar (MAE, bias, MAPE for load).

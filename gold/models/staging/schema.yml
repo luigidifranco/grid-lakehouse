@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: stg_day_ahead_price
+    description: Day-ahead prices (main SDAC auction only), one row per bidding zone and quarter-hour.
+    tests:
+      - unique_combination: {arguments: {columns: [bidding_zone, interval_start_utc]}}
+    columns:
+      - name: bidding_zone
+        tests: [not_null, {relationships: {arguments: {to: ref('bidding_zones'), field: bidding_zone}}}]
+      - name: price_eur_mwh
+        tests: [not_null]
+  - name: stg_physical_flow
+    tests:
+      - unique_combination: {arguments: {columns: [out_area, in_area, interval_start_utc]}}
+    columns:
+      - name: flow_mw
+        tests: [not_null]
+  - name: stg_total_load
+    columns:
+      - name: interval_start_utc
+        tests: [unique, not_null]
+  - name: stg_wind
+    tests:
+      - unique_combination: {arguments: {columns: [interval_start_utc, offshore_onshore, region, grid_connection]}}
+  - name: stg_solar
+    columns:
+      - name: interval_start_utc
+        tests: [unique, not_null]
+  - name: stg_border_flow_elia
+    tests:
+      - unique_combination: {arguments: {columns: [neighbour, interval_start_utc]}}
+    columns:
+      - name: neighbour
+        tests: [{relationships: {arguments: {to: ref('borders'), field: neighbour}}}]

@@ -1,0 +1,6 @@
+neighbour,neighbour_name,neighbour_bidding_zone,coupled_day_ahead
+FR,France,FR,true
+NL,Netherlands,NL,true
+DE,Germany,DE_LU,true
+LU,Luxembourg,DE_LU,true
+GB,Great Britain,,false
