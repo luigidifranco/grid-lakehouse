@@ -18,6 +18,10 @@ vars:
   flow_relevant_max_mw: 50      # un intervalo con más diferencia que esto hace el día "relevante"
   flow_relevant_mae_mw: 5       # o una diferencia media diaria por encima de esto
   revision_days: 7              # días recientes que la ingesta vuelve a descargar: aún pueden cambiar
+  # Flujos frente a precio (fct_border_flow_price)
+  price_convergence_eur_mwh: 0.01   # diferencia de precio por debajo de esto = precios convergentes
+  price_spread_min_eur_mwh: 1       # por debajo de esto el diferencial no se considera señal de precio
+  flow_min_mw: 10                   # por debajo de esto no se considera que haya flujo
 
 models:
   grid_lakehouse:

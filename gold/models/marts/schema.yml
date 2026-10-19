@@ -48,3 +48,20 @@ models:
     description: Daily price spread Belgium minus each coupled neighbour, price convergence and average net export.
   - name: mart_daily_forecast_accuracy
     description: Daily accuracy of Elia's day-ahead forecasts for load, wind and solar (MAE, bias, MAPE for load).
+  - name: fct_border_flow_price
+    description: >
+      Physical cross-border flow (Elia) against the day-ahead price signal, per coupled border and quarter-hour.
+      Physical flows can run against prices because of loop and transit flows; this is not the commercial exchange.
+    tests:
+      - unique_combination: {arguments: {columns: [neighbour, interval_start_utc]}}
+    columns:
+      - name: flow_vs_price
+        tests:
+          - not_null
+          - accepted_values: {arguments: {values: [converged, not_significant, with_price, against_price]}}
+      - name: flow_price_value_eur
+        description: Quarter-hour energy valued at the destination-minus-origin price spread; negative when against price.
+  - name: mart_monthly_border_flow_price
+    description: Monthly price convergence and share of physical flow running with or against the price signal, per coupled border.
+    tests:
+      - unique_combination: {arguments: {columns: [month, neighbour]}}

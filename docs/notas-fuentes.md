@@ -60,3 +60,25 @@ o la media diaria supera 5 MW. Resultado: DE 377 días ok; FR 370 ok / 4 menores
 GB 366 / 11 / 0; LU 365 / 12 / 0; NL 236 / 85 / 56.
 
 Criterio: una discrepancia entre dos publicadores es información (test en `warn`); un hueco es un fallo (test que bloquea).
+
+## Flujo físico frente a señal de precio (19/10/2026)
+
+Modelos: `gold.fct_border_flow_price` (por cuarto de hora) y `gold.mart_monthly_border_flow_price` (por mes y frontera).
+Solo fronteras acopladas en day-ahead (GB queda fuera). Flujo de Elia, precios A44 de ENTSO-E.
+Umbrales en `gold/dbt_project.yml`: convergencia < 0,01 €/MWh; señal de precio ≥ 1 €/MWh; flujo ≥ 10 MW.
+
+| Frontera | Precios convergentes | Flujo contra precio (de los cuartos con señal) | Energía contra precio | Valor contra precio |
+|---|---|---|---|---|
+| DE | 11,9 % | 8,8 % | 235 GWh | −2,5 M€ |
+| FR | 12,4 % | 14,1 % | 1.047 GWh | −5,5 M€ |
+| LU | 11,9 % | 32,7 % | 232 GWh | −2,8 M€ |
+| NL | 13,1 % | **68,8 %** | 6.491 GWh | −57,7 M€ |
+
+Lectura: Bélgica importa físicamente de NL el 94,5 % de los cuartos, también cuando es más barata que NL.
+Es el tránsito norte → sur (flujos de bucle) que el cálculo flow-based de Core permite y que el precio
+no refleja. El porcentaje contra precio en NL baja de ~80 % (oct. 2025–may. 2026) a ~30 % (sept.–oct. 2026),
+a la vez que sube la convergencia de precios.
+
+Ojo: son flujos FÍSICOS (A11). Para separar lo comercial ("non-intuitive exchanges") haría falta el
+intercambio programado day-ahead de ENTSO-E (A09) o los resultados de Core en JAO. El "valor" es indicativo:
+energía física valorada al diferencial de precios, no un coste real.
