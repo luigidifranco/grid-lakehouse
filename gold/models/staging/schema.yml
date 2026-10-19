@@ -33,3 +33,25 @@ models:
     columns:
       - name: neighbour
         tests: [{relationships: {arguments: {to: ref('borders'), field: neighbour}}}]
+  - name: stg_jao_final_domain
+    description: Core final flow-based domain (JAO), non-redundant (presolved) CNECs only, hourly.
+    tests:
+      - unique_combination: {arguments: {columns: [interval_start_utc, tso, cne_name, direction, contingency_name]}}
+    columns:
+      - name: presolved
+        tests: [{accepted_values: {arguments: {values: [true], quote: false}}}]
+  - name: stg_jao_shadow_price
+    description: Active Core CNECs after market coupling (JAO), per quarter-hour, with shadow price.
+    tests:
+      - unique_combination: {arguments: {columns: [interval_start_utc, tso, cnec_name, direction, contingency_name]}}
+  - name: stg_jao_validation_reduction
+    tests:
+      - unique_combination: {arguments: {columns: [interval_start_utc, tso, cnec_name, direction]}}
+  - name: stg_jao_scheduled_exchange
+    tests:
+      - unique_combination: {arguments: {columns: [interval_start_utc, from_zone, to_zone]}}
+  - name: stg_jao_alpha_factor
+    columns:
+      - name: interval_start_utc
+        tests: [unique, not_null]
+

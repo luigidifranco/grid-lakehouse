@@ -82,3 +82,45 @@ a la vez que sube la convergencia de precios.
 Ojo: son flujos FÍSICOS (A11). Para separar lo comercial ("non-intuitive exchanges") haría falta el
 intercambio programado day-ahead de ENTSO-E (A09) o los resultados de Core en JAO. El "valor" es indicativo:
 energía física valorada al diferencial de precios, no un coste real.
+
+## JAO Publication Tool — Core (explorado el 19/10/2026; catálogos en `docs/catalogo_jao*.txt`)
+
+API pública, sin token: `https://publicationtool.jao.eu/core/api/data/<publicación>?FromUtc=…&ToUtc=…&Skip=0&Take=…`.
+`Take` es obligatorio (máximo 100 millones); se pide el día entero de una vez. Límite: 100 peticiones por minuto.
+Desde el Mac hace falta `truststore` (el antivirus o la VPN inspeccionan https), como con ENTSO-E y Elia.
+
+| Dataset bronze | Publicación | Resolución | Volumen por día | Para qué |
+|---|---|---|---|---|
+| dominio_final | finalComputation, filtro `{"Presolved": true}` | PT60M | 4.000–7.500 filas, ~10 MB (~1 MB en gzip) | RAM, Fmax, FRM, F0, AMR, IVA, objetivo minRAM, PTDFs |
+| shadow_prices | shadowPrices | PT15M | ~400–500 | CNECs que limitan el mercado y su shadow price |
+| reducciones_validacion | validationReductions | PT60M | ~100–350 | IVA de cada TSO y su justificación |
+| intercambios_programados | scheduledExchanges | PT15M | 96 | Intercambio comercial por frontera |
+| posicion_neta / posicion_neta_max | netPos / maxNetPos | PT15M / PT60M | 96 / 24 | Posiciones netas |
+| maxbex | maxExchanges | PT60M | 24 | Intercambio bilateral máximo |
+| alpha | alphaFactor | PT15M | 96 | Peso del dominio FB frente al LTA |
+| renta_congestion | congestionIncome | PT15M | 96 | Renta de congestión por zona y TSO |
+
+Notas:
+- El dominio completo son ~40.000 filas por hora; con `presolved` quedan ~160–320 CNECs por hora. ELIA es el TSO con más.
+- Bronze de JAO se guarda en gzip (`respuesta.json.gz`); el `sha256` del registro es el de la respuesta sin comprimir.
+- `tso = 'NA'` son restricciones externas (límites de importación/exportación), no CNECs: se excluyen en gold.
+- El TSO viene en mayúsculas en el dominio (`ELIA`) y en mixto en shadow prices (`Elia`): se normaliza a mayúsculas en silver.
+- Cumplimiento de minRAM: indicador aproximado RAM/Fmax ≥ `minRamTarget` (que ya incluye derogaciones y planes de acción).
+  No es el cálculo oficial de ACER (MACZT con flujos no Core), pero sigue el mismo objetivo publicado por JAO.
+- Hueco en la fuente: JAO no publica el alpha factor del 02 al 09/06/2026 (HTTP 200 con 0 filas, comprobado
+  en el registro de cargas). El resto de publicaciones de esos días están completas. Test aparte en `warn`.
+
+### Primeros resultados de JAO con el año completo (01/10/2025–12/10/2026)
+
+- **minRAM** (`mart_monthly_min_ram`, % de horas-CNEC con RAM/Fmax ≥ objetivo de JAO): ELIA 99,6 % (RAM media
+  0,87·Fmax, AMR en el 12 % de las horas); AMPRION y TENNETBV 99,2 %; en el otro extremo 50HERTZ 80,7 %,
+  PSE 82,0 %, TRANSELECTRICA 85,0 %, RTE 86,5 % (RTE necesita AMR en el 65 % de las horas y aplica IVA en el 13,5 %).
+- **CNECs que más limitan** (`mart_monthly_active_constraints`, suma de shadow prices): RTE Creys–St-Vulbas 400 kV
+  (15.571 cuartos activos), las restricciones externas de NorNed, Baltic Cable y SwePol, y Altheim–Sittling (TenneT DE).
+  Para Elia, la restricción externa de importación del ALEGrO (7.810 cuartos). ELIA es el TSO con más cuartos con
+  algún CNEC activo (23.069), pero con shadow prices bajos: limita a menudo, con poco coste.
+- **Flujo no programado** (`mart_monthly_unscheduled_flow`, físico − comercial, media del año): NL −340 MW
+  (entra más de lo programado), FR +310 MW (sale más de lo programado), DE +90 MW. Es un tránsito norte → sur
+  de unos 300 MW de media a través de Bélgica; máximo en febrero–marzo de 2026 (−741 y −781 MW en NL) y casi
+  nulo en julio–agosto.
+- Detalle: algunas restricciones externas llegan sin TSO en shadow prices (p. ej. DE_AL_import): se guardan con tso = ''.

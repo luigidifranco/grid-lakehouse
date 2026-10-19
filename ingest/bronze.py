@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ingesta bronze: descarga día a día de ENTSO-E y Elia y guarda la respuesta cruda, sin tocarla.
+"""Ingesta bronze: descarga día a día de ENTSO-E, Elia y JAO (Core) y guarda la respuesta cruda, sin tocarla.
 
 Cada descarga queda en  data/bronze/<fuente>/<dataset>/<clave>/dia=<AAAA-MM-DD>/respuesta.<xml|json>
 y se anota en         data/bronze/_registro_cargas.jsonl  (una línea JSON por descarga).
@@ -13,6 +13,7 @@ Uso (desde la carpeta del proyecto):
   python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12 --forzar   vuelve a descargar lo ya bajado
   python3 ingest/bronze.py --desde 2025-10-01 --hasta 2026-10-12 --bloque mes   histórico: ENTSO-E por meses
   python3 ingest/bronze.py --diario                                         carga diaria: los últimos 7 días
+  python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12 --solo jao  solo JAO (Core flow-based)
 
 Ventana de revisión (--revisar, 7 días por defecto): los días de mercado más recientes se vuelven a descargar
 aunque ya estén, porque ENTSO-E y Elia corrigen sus datos los primeros días. Comprobado el 19/10/2026: los
@@ -28,6 +29,7 @@ import calendar
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
+import gzip
 import hashlib
 import json
 import os
@@ -54,6 +56,7 @@ AGENTE = {"User-Agent": "grid-lakehouse/0.1 (portfolio project)"}  # la pasarela
 
 ENTSOE_URL = "https://web-api.tp.entsoe.eu/api"
 ELIA_URL = "https://opendata.elia.be/api/explore/v2.1/catalog/datasets"
+JAO_URL = "https://publicationtool.jao.eu/core/api/data"
 
 # Códigos EIC. Zonas de oferta para precios; países (áreas de control) para flujos físicos.
 ZONAS_PRECIO = {
@@ -75,6 +78,20 @@ DATASETS_ELIA = {
     "ods031": "eolica",
     "ods032": "solar",
     "ods026": "flujos_frontera",
+}
+# JAO Publication Tool de Core: dataset de bronze → (publicación de la API, filtro). Explorado el 19/10/2026,
+# ver docs/catalogo_jao*.txt. El dominio final completo son ~40.000 filas por hora: solo se guardan los
+# CNECs no redundantes (presolved), que son los que limitan de verdad el dominio (~300 por hora).
+DATASETS_JAO = {
+    "shadow_prices": ("shadowPrices", None),                 # CNECs activos tras el acoplamiento y su shadow price
+    "dominio_final": ("finalComputation", {"Presolved": True}),  # RAM, Fmax, FRM, F0, AMR, IVA, minRAM, PTDFs
+    "reducciones_validacion": ("validationReductions", None),    # IVA de los TSOs y su justificación
+    "intercambios_programados": ("scheduledExchanges", None),    # intercambio comercial por frontera
+    "posicion_neta": ("netPos", None),                       # posición neta de mercado por zona
+    "posicion_neta_max": ("maxNetPos", None),                # mín./máx. posible por zona (horario)
+    "maxbex": ("maxExchanges", None),                        # intercambio bilateral máximo (horario)
+    "alpha": ("alphaFactor", None),                          # peso del dominio FB frente al LTA
+    "renta_congestion": ("congestionIncome", None),          # renta de congestión por zona y TSO
 }
 
 
@@ -108,7 +125,8 @@ def descargar(url, intentos=4):
         except urllib.error.HTTPError as e:
             cuerpo = e.read()
             if e.code in (429, 500, 502, 503, 504) and intento < intentos:
-                time.sleep(espera * intento)
+                # 429: ENTSO-E y JAO limitan por minuto, así que hay que esperar a que pase el minuto
+                time.sleep(60 if e.code == 429 else espera * intento)
                 continue
             return e.code, cuerpo
         except urllib.error.URLError:
@@ -151,7 +169,7 @@ def guardar_y_anotar(fuente, dataset, clave, ventana, url, codigo, cuerpo, estad
     fichero = ruta(fuente, dataset, clave, etiqueta)
     if estado in ("ok", "sin_datos"):
         fichero.parent.mkdir(parents=True, exist_ok=True)
-        fichero.write_bytes(cuerpo)
+        fichero.write_bytes(gzip.compress(cuerpo) if fichero.suffix == ".gz" else cuerpo)
     anotar({
         "cargado_en": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "fuente": fuente, "dataset": dataset, "clave": clave, "dia_mercado": dia.isoformat(),
@@ -168,7 +186,8 @@ def guardar_y_anotar(fuente, dataset, clave, ventana, url, codigo, cuerpo, estad
 
 
 def ruta(fuente, dataset, clave, etiqueta):
-    ext = "json" if fuente == "elia" else "xml"
+    # JAO se guarda comprimido: el dominio final ocupa ~10 MB al día en JSON y ~1 MB en gzip (sin pérdida)
+    ext = {"entsoe": "xml", "elia": "json", "jao": "json.gz"}[fuente]
     return BRONZE / fuente / dataset / clave / etiqueta / f"respuesta.{ext}"
 
 
@@ -265,17 +284,50 @@ def cargar_elia(dia, forzar):
         time.sleep(0.5)
 
 
+# ---------------------------------------------------------------- JAO (Core)
+
+def cargar_jao(dia, forzar):
+    inicio, fin = ventana_utc(dia)
+    ventana = (f"dia={dia.isoformat()}", dia, dia)
+    for dataset, (publicacion, filtro) in DATASETS_JAO.items():
+        if not forzar and ya_cargado(ruta("jao", dataset, "core", ventana[0])):
+            print(f"  = jao/{dataset} {dia} · ya estaba")
+            continue
+        # La API exige Skip/Take (hasta 100 millones): pedimos el día entero de una vez
+        params = {"FromUtc": inicio.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "ToUtc": fin.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                  "Skip": 0, "Take": 1_000_000}
+        if filtro:
+            params["Filter"] = json.dumps(filtro)
+        url = f"{JAO_URL}/{publicacion}?{urllib.parse.urlencode(params)}"
+        t0 = time.time()
+        codigo, cuerpo = descargar(url)
+        estado, n, detalle = "error", 0, f"HTTP {codigo}: {cuerpo[:200].decode('utf-8', 'replace')}"
+        if codigo == 200:
+            try:
+                datos = json.loads(cuerpo)
+                n = len(datos.get("data") or [])
+                total = datos.get("totalRowsWithFilter", n)
+                if total > n:   # no debería pasar con Take=1.000.000, pero si pasa no damos el día por bueno
+                    estado, detalle = "error", f"respuesta incompleta: {n} de {total} filas"
+                else:
+                    estado, detalle = ("ok" if n else "sin_datos"), ""
+            except json.JSONDecodeError as e:
+                estado, detalle = "error", f"JSON ilegible: {e}"
+        guardar_y_anotar("jao", dataset, "core", ventana, url, codigo, cuerpo, estado, n, t0, detalle)
+        time.sleep(0.7)  # JAO permite 100 peticiones por minuto
+
+
 # ---------------------------------------------------------------- principal
 
 def main():
-    p = argparse.ArgumentParser(description="Ingesta bronze de ENTSO-E y Elia por día de mercado (hora de Bruselas)")
+    p = argparse.ArgumentParser(description="Ingesta bronze de ENTSO-E, Elia y JAO por día de mercado (hora de Bruselas)")
     p.add_argument("--desde", type=dt.date.fromisoformat, help="primer día, AAAA-MM-DD")
     p.add_argument("--hasta", type=dt.date.fromisoformat, help="último día, incluido")
     p.add_argument("--diario", action="store_true",
                    help="carga diaria: desde hace --revisar días hasta ayer (días completos)")
     p.add_argument("--revisar", type=int, default=7, metavar="DIAS",
                    help="volver a descargar los días de los últimos DIAS días aunque ya estén (0 = nunca)")
-    p.add_argument("--solo", choices=["entsoe", "elia"], help="cargar una sola fuente")
+    p.add_argument("--solo", choices=["entsoe", "elia", "jao"], help="cargar una sola fuente")
     p.add_argument("--forzar", action="store_true", help="volver a descargar aunque ya esté")
     p.add_argument("--bloque", choices=["dia", "mes"], default="dia",
                    help="ENTSO-E por días (carga diaria) o por meses (histórico, mucho más rápido)")
@@ -292,7 +344,7 @@ def main():
     revisar = lambda ultimo_dia: a.forzar or ultimo_dia > limite_revision   # aún dentro de la ventana
     if a.revisar:
         print(f"Ventana de revisión: los días posteriores al {limite_revision} se vuelven a descargar")
-    token = leer_token() if a.solo != "elia" else None
+    token = leer_token() if a.solo in (None, "entsoe") else None
     if a.solo in (None, "entsoe"):
         print(f"ENTSO-E, bloques de tipo '{a.bloque}'")
         for v in ventanas(a.desde, a.hasta, a.bloque):
@@ -305,6 +357,13 @@ def main():
         while dia <= a.hasta:
             print(f"dia={dia}")
             cargar_elia(dia, revisar(dia))
+            dia += dt.timedelta(days=1)
+    if a.solo in (None, "jao"):
+        print("JAO (Core), por días")
+        dia = a.desde
+        while dia <= a.hasta:
+            print(f"dia={dia}")
+            cargar_jao(dia, revisar(dia))
             dia += dt.timedelta(days=1)
 
     errores = []

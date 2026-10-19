@@ -12,6 +12,7 @@ Reglas aplicadas (comprobadas con datos reales, ver docs/notas-fuentes.md):
 Uso (desde la carpeta del proyecto, con el entorno virtual activado):
   python transform/silver.py                      todos los días que haya en bronze
   python transform/silver.py --desde 2026-10-11 --hasta 2026-10-12
+  python transform/silver.py --solo jao           solo las tablas de JAO (transform/silver_jao.py)
 """
 import argparse
 import calendar
@@ -321,8 +322,15 @@ def main():
     p = argparse.ArgumentParser(description="Bronze → silver (tablas Delta)")
     p.add_argument("--desde", type=dt.date.fromisoformat)
     p.add_argument("--hasta", type=dt.date.fromisoformat)
+    p.add_argument("--solo", choices=["entsoe_elia", "jao"], help="construir solo esas tablas")
     a = p.parse_args()
     ahora = dt.datetime.now(UTC)
+    if a.solo != "entsoe_elia" and (BRONZE / "jao").exists():
+        import silver_jao  # aquí y no arriba: silver_jao importa utilidades de este módulo
+        print("Construyendo silver de JAO…")
+        silver_jao.construir(a.desde, a.hasta, ahora)
+    if a.solo == "jao":
+        return
     print("Construyendo silver…")
     try:
         precios = silver_precios(a.desde, a.hasta, ahora)
