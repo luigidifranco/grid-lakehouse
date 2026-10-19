@@ -11,10 +11,22 @@ Uso (desde la carpeta del proyecto):
   python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12            todas las fuentes
   python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12 --solo elia
   python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12 --forzar   vuelve a descargar lo ya bajado
+  python3 ingest/bronze.py --desde 2025-10-01 --hasta 2026-10-12 --bloque mes   histórico: ENTSO-E por meses
+  python3 ingest/bronze.py --diario                                         carga diaria: los últimos 7 días
+
+Ventana de revisión (--revisar, 7 días por defecto): los días de mercado más recientes se vuelven a descargar
+aunque ya estén, porque ENTSO-E y Elia corrigen sus datos los primeros días. Comprobado el 19/10/2026: los
+días 11 y 12/10 descargados al día siguiente no cuadraban entre fuentes; descargados de nuevo, sí.
+
+Con --bloque mes, ENTSO-E se pide un mes por petición (su API admite hasta un año) y en paralelo:
+pasa de 14 peticiones por día a 14 por mes. Elia sigue por días (responde en ~1 s).
 
 Solo usa la biblioteca estándar de Python (+ truststore si está instalado).
 """
 import argparse
+import calendar
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
 import hashlib
 import json
@@ -114,7 +126,7 @@ def sin_token(url):
 
 def anotar(entrada):
     REGISTRO.parent.mkdir(parents=True, exist_ok=True)
-    with REGISTRO.open("a", encoding="utf-8") as f:
+    with _cerrojo, REGISTRO.open("a", encoding="utf-8") as f:   # varias descargas a la vez escriben aquí
         f.write(json.dumps(entrada, ensure_ascii=False) + "\n")
 
 
@@ -131,29 +143,50 @@ def ya_cargado(fichero):
     return bool(ultimo) and ultimo["estado"] in ("ok", "sin_datos")
 
 
-def guardar_y_anotar(fuente, dataset, clave, dia, url, codigo, cuerpo, estado, registros, t0, detalle=""):
-    ext = "json" if fuente == "elia" else "xml"
-    fichero = BRONZE / fuente / dataset / clave / f"dia={dia.isoformat()}" / f"respuesta.{ext}"
+_cerrojo = threading.Lock()
+
+
+def guardar_y_anotar(fuente, dataset, clave, ventana, url, codigo, cuerpo, estado, registros, t0, detalle=""):
+    etiqueta, dia, dia_fin = ventana
+    fichero = ruta(fuente, dataset, clave, etiqueta)
     if estado in ("ok", "sin_datos"):
         fichero.parent.mkdir(parents=True, exist_ok=True)
         fichero.write_bytes(cuerpo)
     anotar({
         "cargado_en": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "fuente": fuente, "dataset": dataset, "clave": clave, "dia_mercado": dia.isoformat(),
+        "dia_mercado_fin": dia_fin.isoformat(),
         "url": sin_token(url), "http": codigo, "estado": estado, "registros": registros,
         "bytes": len(cuerpo), "sha256": hashlib.sha256(cuerpo).hexdigest(),
         "fichero": str(fichero.relative_to(RAIZ)) if estado in ("ok", "sin_datos") else None,
         "duracion_s": round(time.time() - t0, 2), "detalle": detalle[:300],
     })
     simbolo = {"ok": "✓", "sin_datos": "·", "error": "✗"}[estado]
-    print(f"  {simbolo} {fuente}/{dataset}/{clave} {dia} · {estado} · {registros} registros · {len(cuerpo):,} bytes"
+    print(f"  {simbolo} {fuente}/{dataset}/{clave} {etiqueta} · {estado} · {registros} registros · {len(cuerpo):,} bytes"
           + (f" · {detalle[:120]}" if estado != "ok" and detalle else ""))
     return fichero
 
 
-def ruta(fuente, dataset, clave, dia):
+def ruta(fuente, dataset, clave, etiqueta):
     ext = "json" if fuente == "elia" else "xml"
-    return BRONZE / fuente / dataset / clave / f"dia={dia.isoformat()}" / f"respuesta.{ext}"
+    return BRONZE / fuente / dataset / clave / etiqueta / f"respuesta.{ext}"
+
+
+def ventanas(desde, hasta, bloque):
+    """(etiqueta de carpeta, primer día, último día). Por días: dia=AAAA-MM-DD; por meses: mes=AAAA-MM."""
+    if bloque == "dia":
+        d = desde
+        while d <= hasta:
+            yield f"dia={d.isoformat()}", d, d
+            d += dt.timedelta(days=1)
+        return
+    d = desde.replace(day=1)
+    while d <= hasta:
+        ultimo = d.replace(day=calendar.monthrange(d.year, d.month)[1])
+        ini, fin = max(d, desde), min(ultimo, hasta)
+        sufijo = "" if (ini == d and fin == ultimo) else f"_{ini.day:02d}-{fin.day:02d}"  # mes incompleto
+        yield f"mes={d:%Y-%m}{sufijo}", ini, fin
+        d = ultimo + dt.timedelta(days=1)
 
 
 # ---------------------------------------------------------------- ENTSO-E
@@ -172,8 +205,9 @@ def analizar_entsoe(cuerpo):
     return ("ok" if series else "sin_datos"), series, ""
 
 
-def cargar_entsoe(dia, token, forzar):
-    inicio, fin = ventana_utc(dia)
+def cargar_entsoe(ventana, token, forzar, hilos=1):
+    etiqueta, dia_ini, dia_fin = ventana
+    inicio, fin = ventana_utc(dia_ini)[0], ventana_utc(dia_fin)[1]
     periodo = {"periodStart": inicio.strftime("%Y%m%d%H%M"), "periodEnd": fin.strftime("%Y%m%d%H%M")}
     trabajos = []
     for zona, eic in ZONAS_PRECIO.items():                       # A44: precios day-ahead
@@ -184,10 +218,11 @@ def cargar_entsoe(dia, token, forzar):
                          {"documentType": "A11", "out_Domain": BELGICA, "in_Domain": eic}))
         trabajos.append(("a11_flujos", f"frontera={vecino}_BE",
                          {"documentType": "A11", "out_Domain": eic, "in_Domain": BELGICA}))
-    for dataset, clave, params in trabajos:
-        if not forzar and ya_cargado(ruta("entsoe", dataset, clave, dia)):
-            print(f"  = entsoe/{dataset}/{clave} {dia} · ya estaba")
-            continue
+    def una(trabajo):
+        dataset, clave, params = trabajo
+        if not forzar and ya_cargado(ruta("entsoe", dataset, clave, etiqueta)):
+            print(f"  = entsoe/{dataset}/{clave} {etiqueta} · ya estaba")
+            return
         url = f"{ENTSOE_URL}?{urllib.parse.urlencode({'securityToken': token, **params, **periodo})}"
         t0 = time.time()
         codigo, cuerpo = descargar(url)
@@ -195,19 +230,23 @@ def cargar_entsoe(dia, token, forzar):
             estado, n, detalle = analizar_entsoe(cuerpo)
         else:
             estado, n, detalle = "error", 0, f"HTTP {codigo}: {cuerpo[:200].decode('utf-8', 'replace')}"
-        guardar_y_anotar("entsoe", dataset, clave, dia, url, codigo, cuerpo, estado, n, t0, detalle)
-        time.sleep(0.5)  # ENTSO-E permite 400 peticiones/minuto; vamos muy por debajo
+        guardar_y_anotar("entsoe", dataset, clave, ventana, url, codigo, cuerpo, estado, n, t0, detalle)
+        time.sleep(0.5)  # ENTSO-E permite 400 peticiones/minuto; con 4 hilos seguimos muy por debajo
+
+    with ThreadPoolExecutor(max_workers=hilos) as pool:
+        list(pool.map(una, trabajos))
 
 
 # ---------------------------------------------------------------- Elia
 
 def cargar_elia(dia, forzar):
     inicio, fin = ventana_utc(dia)
+    ventana = (f"dia={dia.isoformat()}", dia, dia)
     filtro = (f"datetime >= date'{inicio.strftime('%Y-%m-%dT%H:%M:%SZ')}' "
               f"and datetime < date'{fin.strftime('%Y-%m-%dT%H:%M:%SZ')}'")
     for ident, nombre in DATASETS_ELIA.items():
         dataset = f"{ident}_{nombre}"
-        if not forzar and ya_cargado(ruta("elia", dataset, "todo", dia)):
+        if not forzar and ya_cargado(ruta("elia", dataset, "todo", ventana[0])):
             print(f"  = elia/{dataset} {dia} · ya estaba")
             continue
         # El endpoint de exportación no tiene el límite de 100 registros por página del de consulta
@@ -222,7 +261,7 @@ def cargar_elia(dia, forzar):
                 estado, n, detalle = "error", 0, f"JSON ilegible: {e}"
         else:
             estado, n, detalle = "error", 0, f"HTTP {codigo}: {cuerpo[:200].decode('utf-8', 'replace')}"
-        guardar_y_anotar("elia", dataset, "todo", dia, url, codigo, cuerpo, estado, n, t0, detalle)
+        guardar_y_anotar("elia", dataset, "todo", ventana, url, codigo, cuerpo, estado, n, t0, detalle)
         time.sleep(0.5)
 
 
@@ -230,24 +269,43 @@ def cargar_elia(dia, forzar):
 
 def main():
     p = argparse.ArgumentParser(description="Ingesta bronze de ENTSO-E y Elia por día de mercado (hora de Bruselas)")
-    p.add_argument("--desde", required=True, type=dt.date.fromisoformat, help="primer día, AAAA-MM-DD")
-    p.add_argument("--hasta", required=True, type=dt.date.fromisoformat, help="último día, incluido")
+    p.add_argument("--desde", type=dt.date.fromisoformat, help="primer día, AAAA-MM-DD")
+    p.add_argument("--hasta", type=dt.date.fromisoformat, help="último día, incluido")
+    p.add_argument("--diario", action="store_true",
+                   help="carga diaria: desde hace --revisar días hasta ayer (días completos)")
+    p.add_argument("--revisar", type=int, default=7, metavar="DIAS",
+                   help="volver a descargar los días de los últimos DIAS días aunque ya estén (0 = nunca)")
     p.add_argument("--solo", choices=["entsoe", "elia"], help="cargar una sola fuente")
     p.add_argument("--forzar", action="store_true", help="volver a descargar aunque ya esté")
+    p.add_argument("--bloque", choices=["dia", "mes"], default="dia",
+                   help="ENTSO-E por días (carga diaria) o por meses (histórico, mucho más rápido)")
     a = p.parse_args()
+    hoy = dt.datetime.now(BRUSELAS).date()
+    if a.diario:
+        a.desde, a.hasta = hoy - dt.timedelta(days=max(a.revisar, 1)), hoy - dt.timedelta(days=1)
+    if not (a.desde and a.hasta):
+        sys.exit("indica --desde y --hasta, o --diario")
     if a.hasta < a.desde:
         sys.exit("--hasta no puede ser anterior a --desde")
 
+    limite_revision = hoy - dt.timedelta(days=a.revisar)
+    revisar = lambda ultimo_dia: a.forzar or ultimo_dia > limite_revision   # aún dentro de la ventana
+    if a.revisar:
+        print(f"Ventana de revisión: los días posteriores al {limite_revision} se vuelven a descargar")
     token = leer_token() if a.solo != "elia" else None
-    dia = a.desde
-    while dia <= a.hasta:
-        inicio, fin = ventana_utc(dia)
-        print(f"Día de mercado {dia} (UTC {inicio:%d/%m %H:%M} → {fin:%d/%m %H:%M})")
-        if a.solo in (None, "entsoe"):
-            cargar_entsoe(dia, token, a.forzar)
-        if a.solo in (None, "elia"):
-            cargar_elia(dia, a.forzar)
-        dia += dt.timedelta(days=1)
+    if a.solo in (None, "entsoe"):
+        print(f"ENTSO-E, bloques de tipo '{a.bloque}'")
+        for v in ventanas(a.desde, a.hasta, a.bloque):
+            ini, fin = ventana_utc(v[1])[0], ventana_utc(v[2])[1]
+            print(f"{v[0]} (UTC {ini:%d/%m/%Y %H:%M} → {fin:%d/%m/%Y %H:%M})")
+            cargar_entsoe(v, token, revisar(v[2]), hilos=4 if a.bloque == "mes" else 1)
+    if a.solo in (None, "elia"):
+        print("Elia, por días")
+        dia = a.desde
+        while dia <= a.hasta:
+            print(f"dia={dia}")
+            cargar_elia(dia, revisar(dia))
+            dia += dt.timedelta(days=1)
 
     errores = []
     if REGISTRO.exists():

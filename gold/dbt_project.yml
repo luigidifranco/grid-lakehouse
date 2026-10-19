@@ -13,6 +13,11 @@ vars:
   data_dir: "../data"
   # 'delta' en el Mac; 'parquet' solo para pruebas sin la extensión delta de DuckDB
   silver_format: "delta"
+  # Reconciliación de flujos ENTSO-E vs Elia (mart_daily_flow_reconciliation)
+  flow_tolerance_mw: 1          # por debajo, las dos fuentes se consideran iguales (redondeos)
+  flow_relevant_max_mw: 50      # un intervalo con más diferencia que esto hace el día "relevante"
+  flow_relevant_mae_mw: 5       # o una diferencia media diaria por encima de esto
+  revision_days: 7              # días recientes que la ingesta vuelve a descargar: aún pueden cambiar
 
 models:
   grid_lakehouse:

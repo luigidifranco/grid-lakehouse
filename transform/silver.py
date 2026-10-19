@@ -14,6 +14,7 @@ Uso (desde la carpeta del proyecto, con el entorno virtual activado):
   python transform/silver.py --desde 2026-10-11 --hasta 2026-10-12
 """
 import argparse
+import calendar
 import datetime as dt
 import json
 import sys
@@ -60,10 +61,21 @@ def cuartos_del_dia(dia):
 
 
 def ficheros(fuente, dataset, desde, hasta):
-    """Ficheros de bronze de un dataset dentro del rango de días."""
-    for f in sorted((BRONZE / fuente / dataset).glob("*/dia=*/respuesta.*")):
-        dia = dt.date.fromisoformat(f.parent.name.split("=", 1)[1])
-        if (desde is None or dia >= desde) and (hasta is None or dia <= hasta):
+    """Ficheros de bronze de un dataset que tocan el rango de días: carpetas dia=AAAA-MM-DD o mes=AAAA-MM[_dd-dd].
+
+    Van del descargado antes al descargado después. Si un mismo cuarto de hora está en varios ficheros
+    (un mes y un día, o un día vuelto a descargar), gana el más reciente: es la versión ya revisada.
+    """
+    for f in sorted((BRONZE / fuente / dataset).glob("*/*=*/respuesta.*"), key=lambda f: (f.stat().st_mtime, str(f))):
+        tipo, valor = f.parent.name.split("=", 1)
+        if tipo == "dia":
+            ini = fin = dt.date.fromisoformat(valor)
+        else:  # mes, quizá incompleto: 2025-10 o 2025-10_15-31
+            anio, mes = map(int, valor[:7].split("-"))
+            ultimo = calendar.monthrange(anio, mes)[1]
+            d1, d2 = (map(int, valor[8:].split("-")) if "_" in valor else (1, ultimo))
+            ini, fin = dt.date(anio, mes, d1), dt.date(anio, mes, d2)
+        if (desde is None or fin >= desde) and (hasta is None or ini <= hasta):
             yield f
 
 
@@ -284,21 +296,22 @@ def controles(precios, flujos_entsoe, consumo, solar, flujos_elia):
     if malos:
         avisos.append(f"solar: {len(malos)} cuartos de hora no cuadran, p. ej. {malos[0]}")
 
-    # Flujos: neto ENTSO-E (BE→vecino − vecino→BE) frente a Elia, mismo convenio de signo
-    entsoe = defaultdict(float)
+    # Flujos ENTSO-E: cobertura completa de cada frontera y día. Un punto PT60M cubre 4 cuartos (NL se publicó
+    # por horas hasta el 29/06/2026). Basta con que uno de los dos sentidos tenga dato: entre el 18/04 y el
+    # 02/05/2026 GB y LU omiten a veces el sentido sin flujo, y el neto coincide con Elia (ese sentido es 0).
+    # La comparación con Elia no se hace aquí, sino en gold (mart_daily_flow_reconciliation), para que haya
+    # una sola versión de la reconciliación.
+    puntos = {}
     for r in flujos_entsoe:
-        if r["out_area"] == "BE":
-            entsoe[(r["in_area"], r["interval_start_utc"])] += r["flow_mw"]
-        elif r["in_area"] == "BE":
-            entsoe[(r["out_area"], r["interval_start_utc"])] -= r["flow_mw"]
-    difs = [abs(entsoe[(r["neighbour"], r["interval_start_utc"])] - r["flow_mw"]) for r in flujos_elia
-            if r["flow_mw"] is not None and (r["neighbour"], r["interval_start_utc"]) in entsoe]
-    if difs:
-        malos = sum(1 for d in difs if d > 1.0)
-        print(f"  conciliación flujos ENTSO-E vs Elia: {len(difs):,} cuartos comparados, "
-              f"{malos} con diferencia > 1 MW, máxima {max(difs):.3f} MW")
-        if malos:
-            avisos.append(f"flujos: {malos} cuartos de hora no cuadran entre ENTSO-E y Elia")
+        vecino = r["in_area"] if r["out_area"] == "BE" else r["out_area"]
+        puntos[(vecino, r["interval_start_utc"])] = (r["market_date"], int(resolucion(r["resolution"]) / CUARTO))
+    cubiertos = defaultdict(int)
+    for (vecino, _), (dia, n) in puntos.items():
+        cubiertos[(vecino, dia)] += n
+    for (vecino, dia), n in sorted(cubiertos.items()):
+        if n != cuartos_del_dia(dia):
+            avisos.append(f"flujos ENTSO-E BE–{vecino} {dia}: {n} cuartos cubiertos, se esperaban {cuartos_del_dia(dia)}")
+    print("  conciliación ENTSO-E vs Elia: en gold, tabla gold.mart_daily_flow_reconciliation")
     return avisos
 
 

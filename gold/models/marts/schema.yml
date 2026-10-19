@@ -16,9 +16,27 @@ models:
       - name: market_date
         tests: [{relationships: {arguments: {to: ref('dim_date'), field: market_date}}}]
   - name: fct_cross_border_flow
-    description: Net export from Belgium per border and quarter-hour, from ENTSO-E and Elia, with the difference between sources.
+    description: >
+      Net export from Belgium per border and quarter-hour, from ENTSO-E and Elia. When ENTSO-E publishes
+      hourly values (NL until 2026-06-29), the comparison uses the mean of Elia's quarter-hours in that hour.
     tests:
       - unique_combination: {arguments: {columns: [neighbour, interval_start_utc]}}
+    columns:
+      - name: entsoe_resolution
+        tests: [{accepted_values: {arguments: {values: [PT15M, PT30M, PT60M]}}}]
+      - name: source_difference_mw
+        description: ENTSO-E minus Elia at ENTSO-E's resolution; null on quarters not covered by a comparison.
+  - name: mart_daily_flow_reconciliation
+    description: >
+      Cross-source data quality per market day and border — coverage of both sources, error statistics
+      and a status (ok, minor_deviation, relevant_deviation, provisional, incomplete).
+    tests:
+      - unique_combination: {arguments: {columns: [market_date, neighbour]}}
+    columns:
+      - name: status
+        tests:
+          - not_null
+          - accepted_values: {arguments: {values: [ok, minor_deviation, relevant_deviation, provisional, incomplete]}}
   - name: fct_be_system
     description: Belgian power system per quarter-hour — load, wind, solar, residual load, net exports and price.
     columns:

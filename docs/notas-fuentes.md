@@ -41,3 +41,22 @@ Comunes a Elia:
 - **Solar: las 10 provincias no suman Bélgica** (≈ 2,6 % menos): falta **Bruselas-Capital**, que es región pero no provincia. Control correcto: regiones = Bélgica y provincias + Bruselas = Bélgica (tolerancia 1 %). Con eso, 0 avisos.
 - **Conciliación de flujos ENTSO-E vs Elia:** 960 cuartos de hora comparados, diferencia máxima 0,000 MW.
 - **Idempotencia:** volver a ejecutar silver no inserta filas nuevas (MERGE por clave natural; solo actualiza `loaded_at`).
+
+## Reconciliación de flujos ENTSO-E (A11) vs Elia (ods026) — un año de datos (19/10/2026)
+
+Histórico 01/10/2025–12/10/2026, 5 fronteras, sin huecos en ninguna de las dos fuentes. Hallazgos:
+
+| Caso | Qué pasa | Tratamiento |
+|---|---|---|
+| NL hasta el 29/06/2026 | ENTSO-E publica la frontera NL **por horas** (PT60M); Elia, por cuartos. Desde el 30/06/2026 ENTSO-E pasa a PT15M. | Se compara el valor horario de ENTSO-E con la **media** de los 4 cuartos de Elia. Las discrepancias bajan de ~7.200 a unas 500, casi todas pequeñas. |
+| Días descargados al día siguiente | 11 y 12/10/2026, descargados el 12 y 13/10, no cuadraban en ninguna frontera. Vueltos a descargar el 19/10, cuadran al 100 %. | Ventana de revisión: la ingesta vuelve a descargar los últimos 7 días (`--diario`, `--revisar`). En gold esos días salen como `provisional`. |
+| NL desde el 30/06/2026 | Cuartos sueltos con picos de hasta 322 MW y media cercana a 0; van a menos (julio > agosto > septiembre). | Se marcan `relevant_deviation`. Parece un periodo de ajuste tras el cambio de resolución. |
+| FR, 7 días sueltos (01–05/2026) | Todo el día desviado, ENTSO-E siempre por encima de Elia, 3–13 MW de media. | `minor_deviation` o `relevant_deviation` según el tamaño. Probablemente una revisión publicada solo en una de las fuentes. |
+| GB y LU, 30/03–17/04/2026 | Diferencias pequeñas (máximo 6,5 MW), a menudo en la punta de 17:30–21:45 UTC. | `minor_deviation`. |
+| GB y LU, 18/04–02/05/2026 | ENTSO-E omite a veces el sentido sin flujo. El neto coincide con Elia. | Se trata como flujo 0 en ese sentido; la cobertura se mide por frontera, no por sentido. |
+
+Umbrales (variables en `gold/dbt_project.yml`): tolerancia 1 MW; día relevante si algún intervalo supera 50 MW
+o la media diaria supera 5 MW. Resultado: DE 377 días ok; FR 370 ok / 4 menores / 3 relevantes;
+GB 366 / 11 / 0; LU 365 / 12 / 0; NL 236 / 85 / 56.
+
+Criterio: una discrepancia entre dos publicadores es información (test en `warn`); un hueco es un fallo (test que bloquea).
