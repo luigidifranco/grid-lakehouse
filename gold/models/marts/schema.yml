@@ -71,12 +71,18 @@ models:
       (indicative compliance with the 70 % rule, including each TSO's derogation or action plan).
     tests:
       - unique_combination: {arguments: {columns: [interval_start_utc, tso, cne_name, direction, contingency_name]}}
+    columns:
+      - name: tso
+        tests: [{relationships: {arguments: {to: ref('tsos'), field: tso}}}]
   - name: mart_monthly_min_ram
     description: Monthly minRAM indicators per Core TSO — share of CNEC-hours meeting the target, AMR and IVA use.
     tests:
       - unique_combination: {arguments: {columns: [month, tso]}}
   - name: mart_monthly_active_constraints
     description: Monthly binding Core CNECs (shadow price > 0) — how often they limited the market and at what shadow price.
+    columns:
+      - name: tso
+        tests: [{relationships: {arguments: {to: ref('tsos'), field: tso}}}]
   - name: fct_border_commercial_physical
     description: Commercial scheduled exchange (JAO) vs physical flow (Elia) per Belgian border and quarter-hour; the difference is unscheduled flow.
     tests:

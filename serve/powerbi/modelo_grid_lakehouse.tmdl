@@ -1,0 +1,173 @@
+createOrReplace
+
+	relationship rel_fct_day_ahead_price_market_date
+		fromColumn: fct_day_ahead_price.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_fct_be_system_market_date
+		fromColumn: fct_be_system.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_fct_cross_border_flow_market_date
+		fromColumn: fct_cross_border_flow.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_fct_border_flow_price_market_date
+		fromColumn: fct_border_flow_price.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_fct_border_commercial_physical_market_date
+		fromColumn: fct_border_commercial_physical.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_fct_cnec_hourly_market_date
+		fromColumn: fct_cnec_hourly.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_mart_daily_flow_reconciliation_market_date
+		fromColumn: mart_daily_flow_reconciliation.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_mart_daily_price_spread_market_date
+		fromColumn: mart_daily_price_spread.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_mart_daily_forecast_accuracy_market_date
+		fromColumn: mart_daily_forecast_accuracy.market_date
+		toColumn: dim_date.market_date
+
+	relationship rel_mart_monthly_border_flow_price_month
+		fromColumn: mart_monthly_border_flow_price.month
+		toColumn: dim_date.market_date
+
+	relationship rel_mart_monthly_unscheduled_flow_month
+		fromColumn: mart_monthly_unscheduled_flow.month
+		toColumn: dim_date.market_date
+
+	relationship rel_mart_monthly_min_ram_month
+		fromColumn: mart_monthly_min_ram.month
+		toColumn: dim_date.market_date
+
+	relationship rel_mart_monthly_active_constraints_month
+		fromColumn: mart_monthly_active_constraints.month
+		toColumn: dim_date.market_date
+
+	relationship rel_fct_cross_border_flow_neighbour
+		fromColumn: fct_cross_border_flow.neighbour
+		toColumn: dim_border.neighbour
+
+	relationship rel_fct_border_flow_price_neighbour
+		fromColumn: fct_border_flow_price.neighbour
+		toColumn: dim_border.neighbour
+
+	relationship rel_fct_border_commercial_physical_neighbour
+		fromColumn: fct_border_commercial_physical.neighbour
+		toColumn: dim_border.neighbour
+
+	relationship rel_mart_daily_flow_reconciliation_neighbour
+		fromColumn: mart_daily_flow_reconciliation.neighbour
+		toColumn: dim_border.neighbour
+
+	relationship rel_mart_daily_price_spread_neighbour
+		fromColumn: mart_daily_price_spread.neighbour
+		toColumn: dim_border.neighbour
+
+	relationship rel_mart_monthly_border_flow_price_neighbour
+		fromColumn: mart_monthly_border_flow_price.neighbour
+		toColumn: dim_border.neighbour
+
+	relationship rel_mart_monthly_unscheduled_flow_neighbour
+		fromColumn: mart_monthly_unscheduled_flow.neighbour
+		toColumn: dim_border.neighbour
+
+	relationship rel_fct_day_ahead_price_bidding_zone
+		fromColumn: fct_day_ahead_price.bidding_zone
+		toColumn: dim_bidding_zone.bidding_zone
+
+	relationship rel_fct_cnec_hourly_tso
+		fromColumn: fct_cnec_hourly.tso
+		toColumn: dim_tso.tso
+
+	relationship rel_mart_monthly_min_ram_tso
+		fromColumn: mart_monthly_min_ram.tso
+		toColumn: dim_tso.tso
+
+	relationship rel_mart_monthly_active_constraints_tso
+		fromColumn: mart_monthly_active_constraints.tso
+		toColumn: dim_tso.tso
+
+	table _Measures
+
+		measure 'Days reconciled ok %' = DIVIDE ( CALCULATE ( COUNTROWS ( mart_daily_flow_reconciliation ), mart_daily_flow_reconciliation[status] = "ok" ), COUNTROWS ( mart_daily_flow_reconciliation ) )
+			formatString: 0.0%
+			displayFolder: Data quality
+
+		measure 'Relevant deviation days' = CALCULATE ( COUNTROWS ( mart_daily_flow_reconciliation ), mart_daily_flow_reconciliation[status] = "relevant_deviation" )
+			formatString: #,0
+			displayFolder: Data quality
+
+		measure 'Flow MAE (MW)' = AVERAGE ( mart_daily_flow_reconciliation[mae_mw] )
+			formatString: #,0.0
+			displayFolder: Data quality
+
+		measure 'Avg BE price (€/MWh)' = CALCULATE ( AVERAGE ( fct_day_ahead_price[price_eur_mwh] ), dim_bidding_zone[bidding_zone] = "BE" )
+			formatString: #,0.0
+			displayFolder: Prices and flows
+
+		measure 'Price convergence %' = DIVIDE ( CALCULATE ( COUNTROWS ( fct_border_flow_price ), fct_border_flow_price[flow_vs_price] = "converged" ), COUNTROWS ( fct_border_flow_price ) )
+			formatString: 0.0%
+			displayFolder: Prices and flows
+
+		measure 'Against-price share %' = VAR WithSignal = CALCULATE ( COUNTROWS ( fct_border_flow_price ), fct_border_flow_price[flow_vs_price] IN { "with_price", "against_price" } ) RETURN DIVIDE ( CALCULATE ( COUNTROWS ( fct_border_flow_price ), fct_border_flow_price[flow_vs_price] = "against_price" ), WithSignal )
+			formatString: 0.0%
+			displayFolder: Prices and flows
+
+		measure 'Energy against price (GWh)' = DIVIDE ( CALCULATE ( SUMX ( fct_border_flow_price, ABS ( fct_border_flow_price[net_export_mw] ) * 0.25 ), fct_border_flow_price[flow_vs_price] = "against_price" ), 1000 )
+			formatString: #,0
+			displayFolder: Prices and flows
+
+		measure 'Avg commercial net export (MW)' = AVERAGE ( fct_border_commercial_physical[commercial_net_export_mw] )
+			formatString: #,0
+			displayFolder: Commercial vs physical
+
+		measure 'Avg physical net export (MW)' = AVERAGE ( fct_border_commercial_physical[physical_net_export_mw] )
+			formatString: #,0
+			displayFolder: Commercial vs physical
+
+		measure 'Avg unscheduled flow (MW)' = AVERAGE ( fct_border_commercial_physical[unscheduled_flow_mw] )
+			formatString: #,0
+			displayFolder: Commercial vs physical
+
+		measure 'minRAM target met %' = DIVIDE ( CALCULATE ( COUNTROWS ( fct_cnec_hourly ), fct_cnec_hourly[meets_min_ram_target] = TRUE () ), COUNTROWS ( fct_cnec_hourly ) )
+			formatString: 0.0%
+			displayFolder: Core flow-based
+
+		measure 'Avg RAM / Fmax' = AVERAGE ( fct_cnec_hourly[ram_ratio] )
+			formatString: 0.00
+			displayFolder: Core flow-based
+
+		measure 'AMR use %' = DIVIDE ( CALCULATE ( COUNTROWS ( fct_cnec_hourly ), fct_cnec_hourly[has_amr] = TRUE () ), COUNTROWS ( fct_cnec_hourly ) )
+			formatString: 0.0%
+			displayFolder: Core flow-based
+
+		measure 'Binding quarter-hours' = SUM ( mart_monthly_active_constraints[quarters_active] )
+			formatString: #,0
+			displayFolder: Core flow-based
+
+		measure 'Sum of shadow prices (€/MW)' = SUM ( mart_monthly_active_constraints[sum_shadow_price_eur_mw] )
+			formatString: #,0
+			displayFolder: Core flow-based
+
+		column Dummy
+			dataType: string
+			isHidden
+			summarizeBy: none
+			sourceColumn: Dummy
+
+		partition _Measures = m
+			mode: import
+			source =
+					let
+						Source = #table(type table [Dummy = text], {})
+					in
+						Source

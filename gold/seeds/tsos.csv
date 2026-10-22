@@ -1,0 +1,19 @@
+tso,tso_name,country,is_core_tso
+50HERTZ,50Hertz,DE,true
+AMPRION,Amprion,DE,true
+APG,APG,AT,true
+CEPS,ČEPS,CZ,true
+ELES,ELES,SI,true
+ELIA,Elia,BE,true
+HOPS,HOPS,HR,true
+MAVIR,MAVIR,HU,true
+PSE,PSE,PL,true
+RTE,RTE,FR,true
+SEPS,SEPS,SK,true
+TENNETBV,TenneT NL,NL,true
+TENNETGMBH,TenneT DE,DE,true
+TRANSELECTRICA,Transelectrica,RO,true
+TRANSNETBW,TransnetBW,DE,true
+SWISSGRID,Swissgrid,CH,false
+VIRTUAL HUB,Virtual hub (HVDC),,false
+UNASSIGNED,Unassigned (external constraint),,false

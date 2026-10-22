@@ -3,7 +3,7 @@
 -- social por cada MW más de capacidad en ese CNEC. Ordenando por sum_shadow_price salen los cuellos de botella.
 select
     date_trunc('month', market_date)::date                        as month,
-    tso,
+    coalesce(nullif(tso, ''), 'UNASSIGNED')                       as tso,   -- restricciones externas sin TSO
     tso = 'ELIA'                                                  as is_elia,
     cnec_name,
     contingency_name,
