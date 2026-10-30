@@ -92,8 +92,8 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 echo "ENTSOE_TOKEN=<your token>" > .env          # never committed
 
-python ingest/bronze.py --desde 2026-10-01 --hasta 2026-10-07   # bronze: raw downloads
-python ingest/bronze.py --diario                                # daily run: last 7 days
+python ingest/bronze.py --start 2026-10-01 --end 2026-10-07    # bronze: raw downloads
+python ingest/bronze.py --daily                                # daily run: last 7 days
 python transform/silver.py                                      # silver: Delta tables
 cd gold && dbt build --profiles-dir . && cd ..                  # gold: models + tests
 python serve/export_gold.py                                     # serving tables

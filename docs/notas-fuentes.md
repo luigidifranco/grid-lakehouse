@@ -49,7 +49,7 @@ Histórico 01/10/2025–12/10/2026, 5 fronteras, sin huecos en ninguna de las do
 | Caso | Qué pasa | Tratamiento |
 |---|---|---|
 | NL hasta el 29/06/2026 | ENTSO-E publica la frontera NL **por horas** (PT60M); Elia, por cuartos. Desde el 30/06/2026 ENTSO-E pasa a PT15M. | Se compara el valor horario de ENTSO-E con la **media** de los 4 cuartos de Elia. Las discrepancias bajan de ~7.200 a unas 500, casi todas pequeñas. |
-| Días descargados al día siguiente | 11 y 12/10/2026, descargados el 12 y 13/10, no cuadraban en ninguna frontera. Vueltos a descargar el 19/10, cuadran al 100 %. | Ventana de revisión: la ingesta vuelve a descargar los últimos 7 días (`--diario`, `--revisar`). En gold esos días salen como `provisional`. |
+| Días descargados al día siguiente | 11 y 12/10/2026, descargados el 12 y 13/10, no cuadraban en ninguna frontera. Vueltos a descargar el 19/10, cuadran al 100 %. | Ventana de revisión: la ingesta vuelve a descargar los últimos 7 días (`--daily`, `--revision-days`). En gold esos días salen como `provisional`. |
 | NL desde el 30/06/2026 | Cuartos sueltos con picos de hasta 322 MW y media cercana a 0; van a menos (julio > agosto > septiembre). | Se marcan `relevant_deviation`. Parece un periodo de ajuste tras el cambio de resolución. |
 | FR, 7 días sueltos (01–05/2026) | Todo el día desviado, ENTSO-E siempre por encima de Elia, 3–13 MW de media. | `minor_deviation` o `relevant_deviation` según el tamaño. Probablemente una revisión publicada solo en una de las fuentes. |
 | GB y LU, 30/03–17/04/2026 | Diferencias pequeñas (máximo 6,5 MW), a menudo en la punta de 17:30–21:45 UTC. | `minor_deviation`. |

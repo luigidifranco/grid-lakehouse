@@ -11,8 +11,8 @@ Reglas aplicadas (comprobadas con datos reales, ver docs/notas-fuentes.md):
 
 Uso (desde la carpeta del proyecto, con el entorno virtual activado):
   python transform/silver.py                      todos los días que haya en bronze
-  python transform/silver.py --desde 2026-10-11 --hasta 2026-10-12
-  python transform/silver.py --solo jao           solo las tablas de JAO (transform/silver_jao.py)
+  python transform/silver.py --start 2026-10-11 --end 2026-10-12
+  python transform/silver.py --only jao           solo las tablas de JAO (transform/silver_jao.py)
 """
 import argparse
 import calendar
@@ -319,10 +319,10 @@ def controles(precios, flujos_entsoe, consumo, solar, flujos_elia):
 # ---------------------------------------------------------------- principal
 
 def main():
-    p = argparse.ArgumentParser(description="Bronze → silver (tablas Delta)")
-    p.add_argument("--desde", type=dt.date.fromisoformat)
-    p.add_argument("--hasta", type=dt.date.fromisoformat)
-    p.add_argument("--solo", choices=["entsoe_elia", "jao"], help="construir solo esas tablas")
+    p = argparse.ArgumentParser(description="Bronze → silver (Delta tables)")
+    p.add_argument("--start", dest="desde", metavar="DATE", type=dt.date.fromisoformat, help="first market day, YYYY-MM-DD")
+    p.add_argument("--end", dest="hasta", metavar="DATE", type=dt.date.fromisoformat, help="last market day, YYYY-MM-DD (inclusive)")
+    p.add_argument("--only", dest="solo", choices=["entsoe_elia", "jao"], help="build only these tables")
     a = p.parse_args()
     ahora = dt.datetime.now(UTC)
     if a.solo != "entsoe_elia" and (BRONZE / "jao").exists():

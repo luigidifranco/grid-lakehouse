@@ -8,18 +8,18 @@ El "día" es el día de mercado en hora de Bruselas (00:00–24:00 locales), que
 en verano y de 23:00 a 23:00 en invierno. Así un día de mercado nunca se parte en dos ficheros.
 
 Uso (desde la carpeta del proyecto):
-  python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12            todas las fuentes
-  python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12 --solo elia
-  python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12 --forzar   vuelve a descargar lo ya bajado
-  python3 ingest/bronze.py --desde 2025-10-01 --hasta 2026-10-12 --bloque mes   histórico: ENTSO-E por meses
-  python3 ingest/bronze.py --diario                                         carga diaria: los últimos 7 días
-  python3 ingest/bronze.py --desde 2026-10-11 --hasta 2026-10-12 --solo jao  solo JAO (Core flow-based)
+  python3 ingest/bronze.py --start 2026-10-11 --end 2026-10-12               todas las fuentes
+  python3 ingest/bronze.py --start 2026-10-11 --end 2026-10-12 --only elia
+  python3 ingest/bronze.py --start 2026-10-11 --end 2026-10-12 --force       vuelve a descargar lo ya bajado
+  python3 ingest/bronze.py --start 2025-10-01 --end 2026-10-12 --chunk month histórico: ENTSO-E por meses
+  python3 ingest/bronze.py --daily                                           carga diaria: los últimos 7 días
+  python3 ingest/bronze.py --start 2026-10-11 --end 2026-10-12 --only jao    solo JAO (Core flow-based)
 
-Ventana de revisión (--revisar, 7 días por defecto): los días de mercado más recientes se vuelven a descargar
+Ventana de revisión (--revision-days, 7 días por defecto): los días de mercado más recientes se vuelven a descargar
 aunque ya estén, porque ENTSO-E y Elia corrigen sus datos los primeros días. Comprobado el 19/10/2026: los
 días 11 y 12/10 descargados al día siguiente no cuadraban entre fuentes; descargados de nuevo, sí.
 
-Con --bloque mes, ENTSO-E se pide un mes por petición (su API admite hasta un año) y en paralelo:
+Con --chunk month, ENTSO-E se pide un mes por petición (su API admite hasta un año) y en paralelo:
 pasa de 14 peticiones por día a 14 por mes. Elia sigue por días (responde en ~1 s).
 
 Solo usa la biblioteca estándar de Python (+ truststore si está instalado).
@@ -320,25 +320,28 @@ def cargar_jao(dia, forzar):
 # ---------------------------------------------------------------- principal
 
 def main():
-    p = argparse.ArgumentParser(description="Ingesta bronze de ENTSO-E, Elia y JAO por día de mercado (hora de Bruselas)")
-    p.add_argument("--desde", type=dt.date.fromisoformat, help="primer día, AAAA-MM-DD")
-    p.add_argument("--hasta", type=dt.date.fromisoformat, help="último día, incluido")
-    p.add_argument("--diario", action="store_true",
-                   help="carga diaria: desde hace --revisar días hasta ayer (días completos)")
-    p.add_argument("--revisar", type=int, default=7, metavar="DIAS",
-                   help="volver a descargar los días de los últimos DIAS días aunque ya estén (0 = nunca)")
-    p.add_argument("--solo", choices=["entsoe", "elia", "jao"], help="cargar una sola fuente")
-    p.add_argument("--forzar", action="store_true", help="volver a descargar aunque ya esté")
-    p.add_argument("--bloque", choices=["dia", "mes"], default="dia",
-                   help="ENTSO-E por días (carga diaria) o por meses (histórico, mucho más rápido)")
+    p = argparse.ArgumentParser(description="Bronze ingestion of ENTSO-E, Elia and JAO, one market day (Brussels time) at a time")
+    p.add_argument("--start", dest="desde", metavar="DATE", type=dt.date.fromisoformat,
+                   help="first market day, YYYY-MM-DD")
+    p.add_argument("--end", dest="hasta", metavar="DATE", type=dt.date.fromisoformat,
+                   help="last market day, YYYY-MM-DD (inclusive)")
+    p.add_argument("--daily", dest="diario", action="store_true",
+                   help="daily run: from --revision-days days ago until yesterday (complete days)")
+    p.add_argument("--revision-days", dest="revisar", type=int, default=7, metavar="DAYS",
+                   help="re-download the last DAYS days even if already loaded (0 = never)")
+    p.add_argument("--only", dest="solo", choices=["entsoe", "elia", "jao"], help="load a single source")
+    p.add_argument("--force", dest="forzar", action="store_true", help="re-download even if already loaded")
+    p.add_argument("--chunk", dest="bloque", choices=["day", "month"], default="day",
+                   help="ENTSO-E request size: one day (daily run) or one month (backfill, much faster)")
     a = p.parse_args()
+    a.bloque = {"day": "dia", "month": "mes"}[a.bloque]   # valores internos de ventanas()
     hoy = dt.datetime.now(BRUSELAS).date()
     if a.diario:
         a.desde, a.hasta = hoy - dt.timedelta(days=max(a.revisar, 1)), hoy - dt.timedelta(days=1)
     if not (a.desde and a.hasta):
-        sys.exit("indica --desde y --hasta, o --diario")
+        sys.exit("give --start and --end, or --daily")
     if a.hasta < a.desde:
-        sys.exit("--hasta no puede ser anterior a --desde")
+        sys.exit("--end cannot be earlier than --start")
 
     limite_revision = hoy - dt.timedelta(days=a.revisar)
     revisar = lambda ultimo_dia: a.forzar or ultimo_dia > limite_revision   # aún dentro de la ventana
